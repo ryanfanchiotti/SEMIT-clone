@@ -442,7 +442,11 @@ class WTConv2d(nn.Module):
         if padding is None:
             padding = kernel_size // 2
         super(WTConv2d, self).__init__()
-        assert in_channels == out_channels
+
+        if in_channels != out_channels:
+            self.proj = nn.Conv2d(in_channels, out_channels, kernel_size=1, bias=False)
+        else:
+            self.proj = None
 
         self.in_channels = in_channels
         self.wt_levels = wt_levels
@@ -470,6 +474,8 @@ class WTConv2d(nn.Module):
             self.do_stride = None
 
     def forward(self, x):
+        if self.proj is not None:
+            x = self.proj(x)
 
         x_ll_in_levels = []
         x_h_in_levels = []
