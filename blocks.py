@@ -6,101 +6,38 @@ Licensed under the CC BY-NC-SA 4.0 license
 import torch
 import torch.nn.functional as F
 from torch import nn
-
-
-
+import wavelet
 from functools import partial
 import pdb
 
-# discrete wavelet transform
-class DWT(nn.Module):
-    def __init__(self):
-        super(DWT, self).__init__()
-    
-    def forward(self, x):
-        x_l = (x[:, :, :, 0::2] + x[:, :, :, 1::2]) / 2.0 
-        x_ll = (x_l[:, :, 0::2, :] + x_l[:, :, 1::2, :]) / 2.0
-        return x_ll
-
-# inverse discrete wavelet transform
-class IDWT(nn.Module):
-    def __init__(self):
-        super(IDWT, self).__init__()
-    
-    def forward(self, x_ll):
-        B, C, H, W = x_ll.shape
-        out = x_ll.new_zeros(B, C, H * 2, W * 2)
-        
-        out[:, :, 0::2, 0::2] = x_ll
-        out[:, :, 0::2, 1::2] = x_ll
-        out[:, :, 1::2, 0::2] = x_ll
-        out[:, :, 1::2, 1::2] = x_ll
-        
-        return out
-
-# full dwt
-class DWT_Full(nn.Module):
-    def __init__(self):
-        super(DWT_Full, self).__init__()
-    
-    def forward(self, x):
-        x_l = (x[:, :, :, 0::2] + x[:, :, :, 1::2]) / 2.0
-        x_h = (x[:, :, :, 0::2] - x[:, :, :, 1::2]) / 2.0
-        
-        x_ll = (x_l[:, :, 0::2, :] + x_l[:, :, 1::2, :]) / 2.0
-        x_lh = (x_l[:, :, 0::2, :] - x_l[:, :, 1::2, :]) / 2.0
-        x_hl = (x_h[:, :, 0::2, :] + x_h[:, :, 1::2, :]) / 2.0
-        x_hh = (x_h[:, :, 0::2, :] - x_h[:, :, 1::2, :]) / 2.0
-        
-        return x_ll, x_lh, x_hl, x_hh
-
-# full idwt
-class IDWT_Full(nn.Module):
-    def __init__(self):
-        super(IDWT_Full, self).__init__()
-    
-    def forward(self, x_ll, x_lh, x_hl, x_hh):
-        B, C, H, W = x_ll.shape
-        
-        x_l = torch.zeros(B, C, H * 2, W, device=x_ll.device, dtype=x_ll.dtype)
-        x_h = torch.zeros(B, C, H * 2, W, device=x_ll.device, dtype=x_ll.dtype)
-        
-        x_l[:, :, 0::2, :] = x_ll + x_lh
-        x_l[:, :, 1::2, :] = x_ll - x_lh
-        x_h[:, :, 0::2, :] = x_hl + x_hh
-        x_h[:, :, 1::2, :] = x_hl - x_hh
-        
-        out = torch.zeros(B, C, H * 2, W * 2, device=x_ll.device, dtype=x_ll.dtype)
-        out[:, :, :, 0::2] = x_l + x_h
-        out[:, :, :, 1::2] = x_l - x_h
-        
-        return out
-
-
 def oct_conv7x7(in_planes, out_planes,alpha_in=0.25, alpha_out=0.25, kernel_size=7, stride=1, padding =3, type='normal'):
     """7x7 convolution with padding"""
-    return WaveletConv(in_planes, out_planes, alpha_in=alpha_in, alpha_out=alpha_out, kernel_size=kernel_size, stride=stride, padding=padding,  type=type)
+    return WTConv2d(in_planes, out_planes, kernel_size=kernel_size, stride=stride, padding=padding)
+
 def norm_conv7x7(in_planes, out_planes,alpha_in=0.25, alpha_out=0.25, kernel_size=7, stride=1, padding =3, type=None):
     """7x7 convolution with padding"""
     return nn.Conv2d(in_planes, out_planes, kernel_size=kernel_size, stride=stride, padding=padding, bias=False)
 
 def oct_conv5x5(in_planes, out_planes,alpha_in=0.25, alpha_out=0.25, kernel_size=5, stride=1, padding =3, type='normal'):
     """5x5 convolution with padding"""
-    return WaveletConv(in_planes, out_planes, alpha_in=alpha_in, alpha_out=alpha_out, kernel_size=kernel_size, stride=stride, padding=padding, type=type)
+    return WTConv2d(in_planes, out_planes, kernel_size=kernel_size, stride=stride, padding=padding)
+
 def norm_conv5x5(in_planes, out_planes,alpha_in=0.25, alpha_out=0.25, kernel_size=5, stride=1, padding =3,  type=None):
     """5x5 convolution with padding"""
     return nn.Conv2d(in_planes, out_planes, kernel_size=kernel_size, stride=stride,  padding=padding, bias=False)
 
 def oct_conv4x4(in_planes, out_planes,alpha_in=0.25, alpha_out=0.25, kernel_size=4, stride=2, padding =3, type='normal'):
     """4x4 convolution with padding"""
-    return WaveletConv(in_planes, out_planes, alpha_in=alpha_in, alpha_out=alpha_out, kernel_size=kernel_size, stride=stride, padding=padding,  type=type)
+    return WTConv2d(in_planes, out_planes, kernel_size=kernel_size, stride=stride, padding=padding)
+
 def norm_conv4x4(in_planes, out_planes,alpha_in=0.25, alpha_out=0.25, kernel_size=4, stride=2, padding=3, type=None):
     """4x4 convolution with padding"""
     return nn.Conv2d(in_planes, out_planes, kernel_size=kernel_size, stride=stride, padding=padding, bias=False)
 
 def oct_conv3x3(in_planes, out_planes,alpha_in=0.25, alpha_out=0.25, kernel_size=3, stride=1, padding =3, type='normal'):
     """3x3 convolution with padding"""
-    return WaveletConv(in_planes, out_planes, alpha_in=alpha_in, alpha_out=alpha_out, kernel_size=kernel_size, stride=stride, padding=padding, type=type)
+    return WTConv2d(in_planes, out_planes, kernel_size=kernel_size, stride=stride, padding=padding)
+
 def norm_conv3x3(in_planes, out_planes,alpha_in=0.25, alpha_out=0.25, kernel_size=3, stride=1, padding =3, type=None):
     """3x3 convolution with padding"""
     return nn.Conv2d(in_planes, out_planes, kernel_size=kernel_size, stride=stride, padding=padding, bias=False)
@@ -163,36 +100,45 @@ class Oct_conv_up(nn.Upsample):
         return hf, lf
 
 
-class WaveletConv(nn.Module):
+class OctConv(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0,
                  alpha_in=0.25, alpha_out=0.25, type='normal'):
-        super(WaveletConv, self).__init__()
+        super(OctConv, self).__init__()
         self.kernel_size = kernel_size
         self.stride = stride
         self.type = type
+       # hf_ch_in = int(in_channels * (1 - alpha_in))
+       # hf_ch_out = int(out_channels * (1 - alpha_out))
+       # lf_ch_in = in_channels - hf_ch_in
+       # lf_ch_out = out_channels - hf_ch_out
 
         hf_ch_in = in_channels 
         hf_ch_out = out_channels 
         lf_ch_in = in_channels 
         lf_ch_out = out_channels
 
-        # wavelet transform modules
-        self.dwt = DWT()
-        self.idwt = IDWT()
-
         if type == 'first':
+            #if stride == 2:
+            #    self.downsample = nn.AvgPool2d(kernel_size=2, stride=stride)
             self.convh = nn.Conv2d(
                 in_channels, hf_ch_out,
                 kernel_size=kernel_size, stride=stride, padding=padding, bias=False
             )
+            self.avg_pool = nn.AvgPool2d(kernel_size=2, stride=2)
             self.convl = nn.Conv2d(
                 in_channels, lf_ch_out,
                 kernel_size=kernel_size, stride=stride, padding=padding, bias=False
             )
         elif type == 'last':
+            #if stride == 2:
+            #    self.downsample = nn.AvgPool2d(kernel_size=2, stride=stride)
             self.convh = nn.Conv2d(hf_ch_in, out_channels, kernel_size=kernel_size, stride=stride, padding=padding, bias=False)
             self.convl = nn.Conv2d(lf_ch_in, out_channels, kernel_size=kernel_size, stride=stride, padding=padding, bias=False)
+            self.upsample = partial(F.interpolate, scale_factor=2, mode="nearest")
         else:
+            #if stride == 2:
+            #    self.downsample = nn.AvgPool2d(kernel_size=2, stride=stride)
+
             self.L2L = nn.Conv2d(
                 lf_ch_in, lf_ch_out,
                 kernel_size=kernel_size, stride=stride, padding=padding, bias=False
@@ -209,7 +155,8 @@ class WaveletConv(nn.Module):
                 hf_ch_in, hf_ch_out,
                 kernel_size=kernel_size, stride=stride, padding=padding, bias=False
             )
-
+            self.upsample = partial(F.interpolate, scale_factor=2, mode="nearest")
+            self.avg_pool = partial(F.avg_pool2d, kernel_size=2, stride=2)
     def mask(self, hf, lf, alpha_in=0.25, alpha_out=0.25, order=True):
         mask_hf=torch.zeros_like(hf).cuda()
         mask_lf=torch.zeros_like(lf).cuda()
@@ -229,30 +176,24 @@ class WaveletConv(nn.Module):
         hf=hf*mask_hf
         lf=lf*mask_lf
         return hf, lf
-
     def forward(self, x, alpha_in, alpha_out):
         if self.type == 'first':
+            #if self.stride == 2:
+            #    x = self.downsample(x)
             hf = self.convh(x)
-            # use DWT instead of avg_pool for low frequency decomposition
-            lf = self.dwt(x)
+            lf = self.avg_pool(x)
             lf = self.convl(lf)
             hf, lf = self.mask(hf, lf, alpha_in=alpha_in, alpha_out=alpha_out)
             return hf, lf
 
         elif self.type == 'last':
             hf, lf = x
-            # use IDWT instead of upsample for wavelet reconstruction
-            return self.convh(hf) + self.convl(self.idwt(lf))
+            return self.convh(hf) + self.convl(self.upsample(lf))
         else:
             hf, lf = x
-            # use IDWT for upsampling (L->H) and DWT for downsampling (H->L)
-            hf, lf = self.H2H(hf) + self.idwt(self.L2H(lf)), self.L2L(lf) + self.H2L(self.dwt(hf)) 
+            hf, lf = self.H2H(hf) + self.upsample(self.L2H(lf)), self.L2L(lf) + self.H2L(self.avg_pool(hf)) 
             hf, lf = self.mask(hf, lf, alpha_in=alpha_in, alpha_out=alpha_out)
             return hf, lf  
-
-
-OctConv = WaveletConv
-
 
 class ResBlocks(nn.Module):
     def __init__(self, num_blocks, dim, norm, activation, pad_type):
@@ -494,3 +435,94 @@ class AdaptiveInstanceNorm2d(nn.Module):
 
     def __repr__(self):
         return self.__class__.__name__ + '(' + str(self.num_features) + ')'
+
+class WTConv2d(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size=5, stride=1, bias=True, wt_levels=1, wt_type='db1'):
+        super(WTConv2d, self).__init__()
+
+        assert in_channels == out_channels
+
+        self.in_channels = in_channels
+        self.wt_levels = wt_levels
+        self.stride = stride
+        self.dilation = 1
+
+        self.wt_filter, self.iwt_filter = wavelet.create_2d_wavelet_filter(wt_type, in_channels, in_channels, torch.float)
+        self.wt_filter = nn.Parameter(self.wt_filter, requires_grad=False)
+        self.iwt_filter = nn.Parameter(self.iwt_filter, requires_grad=False)
+
+        self.base_conv = nn.Conv2d(in_channels, in_channels, kernel_size, padding='same', stride=1, dilation=1, groups=in_channels, bias=bias)
+        self.base_scale = _ScaleModule([1,in_channels,1,1])
+
+        self.wavelet_convs = nn.ModuleList(
+            [nn.Conv2d(in_channels*4, in_channels*4, kernel_size, padding='same', stride=1, dilation=1, groups=in_channels*4, bias=False) for _ in range(self.wt_levels)]
+        )
+        self.wavelet_scale = nn.ModuleList(
+            [_ScaleModule([1,in_channels*4,1,1], init_scale=0.1) for _ in range(self.wt_levels)]
+        )
+
+        if self.stride > 1:
+            self.do_stride = nn.AvgPool2d(kernel_size=1, stride=stride)
+        else:
+            self.do_stride = None
+
+    def forward(self, x):
+
+        x_ll_in_levels = []
+        x_h_in_levels = []
+        shapes_in_levels = []
+
+        curr_x_ll = x
+
+        for i in range(self.wt_levels):
+            curr_shape = curr_x_ll.shape
+            shapes_in_levels.append(curr_shape)
+            if (curr_shape[2] % 2 > 0) or (curr_shape[3] % 2 > 0):
+                curr_pads = (0, curr_shape[3] % 2, 0, curr_shape[2] % 2)
+                curr_x_ll = F.pad(curr_x_ll, curr_pads)
+
+            curr_x = wavelet.wavelet_2d_transform(curr_x_ll, self.wt_filter)
+            curr_x_ll = curr_x[:,:,0,:,:]
+
+            shape_x = curr_x.shape
+            curr_x_tag = curr_x.reshape(shape_x[0], shape_x[1] * 4, shape_x[3], shape_x[4])
+            curr_x_tag = self.wavelet_scale[i](self.wavelet_convs[i](curr_x_tag))
+            curr_x_tag = curr_x_tag.reshape(shape_x)
+
+            x_ll_in_levels.append(curr_x_tag[:,:,0,:,:])
+            x_h_in_levels.append(curr_x_tag[:,:,1:4,:,:])
+
+        next_x_ll = 0
+
+        for i in range(self.wt_levels-1, -1, -1):
+            curr_x_ll = x_ll_in_levels.pop()
+            curr_x_h = x_h_in_levels.pop()
+            curr_shape = shapes_in_levels.pop()
+
+            curr_x_ll = curr_x_ll + next_x_ll
+
+            curr_x = torch.cat([curr_x_ll.unsqueeze(2), curr_x_h], dim=2)
+            next_x_ll = wavelet.inverse_2d_wavelet_transform(curr_x, self.iwt_filter)
+
+            next_x_ll = next_x_ll[:, :, :curr_shape[2], :curr_shape[3]]
+
+        x_tag = next_x_ll
+        assert len(x_ll_in_levels) == 0
+
+        x = self.base_scale(self.base_conv(x))
+        x = x + x_tag
+
+        if self.do_stride is not None:
+            x = self.do_stride(x)
+
+        return x
+
+class _ScaleModule(nn.Module):
+    def __init__(self, dims, init_scale=1.0, init_bias=0):
+        super(_ScaleModule, self).__init__()
+        self.dims = dims
+        self.weight = nn.Parameter(torch.ones(*dims) * init_scale)
+        self.bias = None
+
+    def forward(self, x):
+        return torch.mul(self.weight, x)
