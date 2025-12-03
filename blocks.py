@@ -437,8 +437,9 @@ class AdaptiveInstanceNorm2d(nn.Module):
         return self.__class__.__name__ + '(' + str(self.num_features) + ')'
 
 # added padding arg here - not sure why it wasn't here originally
+# dummy alpha params here to avoid crashes
 class WTConv2d(nn.Module):
-    def __init__(self, in_channels, out_channels, alpha_in, alpha_out, kernel_size=5, stride=1, padding=None, bias=True, wt_levels=1, wt_type='db1'):
+    def __init__(self, in_channels, out_channels, alpha_in=None, alpha_out=None, kernel_size=5, stride=1, padding=None, bias=True, wt_levels=1, wt_type='db1'):
         if padding is None:
             padding = kernel_size // 2
         super(WTConv2d, self).__init__()
@@ -472,8 +473,9 @@ class WTConv2d(nn.Module):
             self.do_stride = nn.AvgPool2d(kernel_size=1, stride=stride)
         else:
             self.do_stride = None
-
-    def forward(self, x, alpha_in, alpha_out):
+    
+    # alpha params unused
+    def forward(self, x, alpha_in=None, alpha_out=None):
         if self.proj is not None:
             x = self.proj(x)
 
